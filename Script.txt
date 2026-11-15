@@ -1,0 +1,423 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- COUNTRY DATABASE
+local regions = {
+    {
+        name = "South America",
+        countries = {
+            "Argentina", "Bolivia", "Brazil", "Chile",
+            "Colombia", "Ecuador", "Guyana", "Paraguay",
+            "Peru", "Suriname", "Uruguay", "Venezuela"
+        }
+    },
+
+    {
+        name = "Central America",
+        countries = {
+            "Belize", "Costa Rica", "El Salvador",
+            "Guatemala", "Honduras", "Nicaragua", "Panama"
+        }
+    },
+
+    {
+        name = "North America",
+        countries = {
+            "Antigua and Barbuda", "Bahamas", "Barbados",
+            "Canada", "Cuba", "Dominica",
+            "Dominican Republic", "Grenada", "Haiti",
+            "Jamaica", "Mexico", "Saint Kitts and Nevis",
+            "Saint Lucia", "Saint Vincent and the Grenadines",
+            "Trinidad and Tobago", "United States"
+        }
+    },
+
+    {
+        name = "Europe",
+        countries = {
+            "Albania", "Andorra", "Austria", "Belarus",
+            "Belgium", "Bosnia and Herzegovina", "Bulgaria",
+            "Croatia", "Czechia", "Denmark", "Estonia",
+            "Finland", "France", "Germany", "Greece",
+            "Hungary", "Iceland", "Ireland", "Italy", "Kosovo",
+            "Latvia", "Liechtenstein", "Lithuania",
+            "Luxembourg", "Malta", "Moldova", "Monaco",
+            "Montenegro", "Netherlands", "North Macedonia",
+            "Norway", "Poland", "Portugal", "Romania",
+            "Russia", "San Marino", "Serbia", "Slovakia",
+            "Slovenia", "Spain", "Sweden", "Switzerland",
+            "Ukraine", "United Kingdom", "Vatican City"
+        }
+    },
+
+    {
+        name = "Africa",
+        countries = {
+            "Algeria", "Angola", "Benin", "Botswana",
+            "Burkina Faso", "Burundi", "Cabo Verde",
+            "Cameroon", "Central African Republic", "Chad",
+            "Comoros", "Democratic Republic of the Congo",
+            "Republic of the Congo", "Cote d'Ivoire",
+            "Djibouti", "Egypt", "Equatorial Guinea",
+            "Eritrea", "Eswatini", "Ethiopia", "Gabon",
+            "Gambia", "Ghana", "Guinea", "Guinea-Bissau",
+            "Kenya", "Lesotho", "Liberia", "Libya",
+            "Madagascar", "Malawi", "Mali", "Mauritania",
+            "Mauritius", "Morocco", "Mozambique", "Namibia",
+            "Niger", "Nigeria", "Rwanda",
+            "Sao Tome and Principe", "Senegal", "Seychelles",
+            "Sierra Leone", "Somalia", "South Africa",
+            "South Sudan", "Sudan", "Tanzania", "Togo",
+            "Tunisia", "Uganda", "Zambia", "Zimbabwe"
+        }
+    },
+
+    {
+        name = "Asia",
+        countries = {
+            "Afghanistan", "Armenia", "Azerbaijan",
+            "Bahrain", "Bangladesh", "Bhutan", "Brunei",
+            "Cambodia", "China", "Cyprus", "Georgia",
+            "India", "Indonesia", "Iran", "Iraq", "Israel",
+            "Japan", "Jordan", "Kazakhstan", "Kuwait",
+            "Kyrgyzstan", "Laos", "Lebanon", "Malaysia",
+            "Maldives", "Mongolia", "Myanmar", "Nepal",
+            "North Korea", "Oman", "Pakistan", "Palestine",
+            "Philippines", "Qatar", "Saudi Arabia",
+            "Singapore", "South Korea", "Sri Lanka", "Syria",
+            "Tajikistan", "Taiwan", "Thailand", "Timor-Leste",
+            "Turkey", "Turkmenistan",
+            "United Arab Emirates", "Uzbekistan",
+            "Vietnam", "Yemen"
+        }
+    },
+
+    {
+        name = "Oceania",
+        countries = {
+            "Australia", "Fiji", "Kiribati",
+            "Marshall Islands", "Micronesia", "Nauru",
+            "New Zealand", "Palau",
+            "Papua New Guinea", "Samoa",
+            "Solomon Islands", "Tonga",
+            "Tuvalu", "Vanuatu"
+        }
+    }
+}
+
+-- FLATTEN COUNTRY LIST
+local countries = {}
+
+for _, region in ipairs(regions) do
+    for _, country in ipairs(region.countries) do
+        table.insert(countries, country)
+    end
+end
+
+-- SETTINGS
+local COOLDOWN = 0.55
+local enabled = false
+local typing = false
+local index = 1
+local activeBox = nil
+local session = 0
+
+-- GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "NameEveryCountry"
+gui.ResetOnSpawn = false
+gui.Parent = playerGui
+
+-- OUTER RAINBOW BORDER
+local border = Instance.new("Frame")
+border.Name = "RainbowBorder"
+border.Size = UDim2.fromOffset(294, 254)
+border.Position = UDim2.new(0.5, -147, 0.5, -127)
+border.BackgroundColor3 = Color3.new(1, 1, 1)
+border.BorderSizePixel = 0
+border.Parent = gui
+
+local borderCorner = Instance.new("UICorner")
+borderCorner.CornerRadius = UDim.new(0, 17)
+borderCorner.Parent = border
+
+local gradient = Instance.new("UIGradient")
+gradient.Rotation = 45
+gradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+    ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 170, 0)),
+    ColorSequenceKeypoint.new(0.32, Color3.fromRGB(255, 255, 0)),
+    ColorSequenceKeypoint.new(0.48, Color3.fromRGB(0, 255, 100)),
+    ColorSequenceKeypoint.new(0.64, Color3.fromRGB(0, 180, 255)),
+    ColorSequenceKeypoint.new(0.80, Color3.fromRGB(120, 0, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+})
+gradient.Parent = border
+
+-- Move colors while keeping gradient direction fixed
+local gradientTween = TweenService:Create(
+    gradient,
+    TweenInfo.new(
+        4,
+        Enum.EasingStyle.Linear,
+        Enum.EasingDirection.InOut,
+        -1,
+        false
+    ),
+    {Offset = Vector2.new(1, 0)}
+)
+
+gradient.Offset = Vector2.new(-1, 0)
+gradientTween:Play()
+
+-- INNER GUI
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(1, -8, 1, -8)
+frame.Position = UDim2.fromOffset(4, 4)
+frame.BackgroundColor3 = Color3.fromRGB(19, 20, 31)
+frame.BorderSizePixel = 0
+frame.Parent = border
+
+local frameCorner = Instance.new("UICorner")
+frameCorner.CornerRadius = UDim.new(0, 13)
+frameCorner.Parent = frame
+
+-- TITLE
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -10, 0, 45)
+title.Position = UDim2.fromOffset(5, 5)
+title.BackgroundTransparency = 1
+title.Text = "Name Every Country!"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBlack
+title.TextSize = 21
+title.Parent = frame
+
+-- STATUS
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -20, 0, 25)
+status.Position = UDim2.fromOffset(10, 48)
+status.BackgroundTransparency = 1
+status.Text = "Status: STOPPED"
+status.TextColor3 = Color3.fromRGB(255, 100, 100)
+status.Font = Enum.Font.GothamBold
+status.TextSize = 13
+status.Parent = frame
+
+-- PROGRESS
+local progress = Instance.new("TextLabel")
+progress.Size = UDim2.new(1, -20, 0, 22)
+progress.Position = UDim2.fromOffset(10, 72)
+progress.BackgroundTransparency = 1
+progress.Text = "Countries: 0 / " .. #countries
+progress.TextColor3 = Color3.fromRGB(190, 190, 205)
+progress.Font = Enum.Font.Gotham
+progress.TextSize = 12
+progress.Parent = frame
+
+local function makeButton(name, text, y, color)
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Size = UDim2.new(1, -30, 0, 34)
+    button.Position = UDim2.fromOffset(15, y)
+    button.BackgroundColor3 = color
+    button.Text = text
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 14
+    button.AutoButtonColor = true
+    button.Parent = frame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = button
+
+    return button
+end
+
+local startButton = makeButton(
+    "StartButton", "START", 105,
+    Color3.fromRGB(35, 165, 95)
+)
+
+local repeatButton = makeButton(
+    "RepeatButton", "REPEAT", 146,
+    Color3.fromRGB(65, 105, 210)
+)
+
+local stopButton = makeButton(
+    "StopButton", "STOP", 187,
+    Color3.fromRGB(190, 65, 65)
+)
+
+-- DRAGGING: MOUSE + MOBILE TOUCH
+local dragging = false
+local dragStart
+local startPosition
+local dragInput
+
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+
+        dragging = true
+        dragStart = input.Position
+        startPosition = border.Position
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if not dragging then return end
+
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input == dragInput then
+
+        local delta = input.Position - dragStart
+
+        border.Position = UDim2.new(
+            startPosition.X.Scale,
+            startPosition.X.Offset + delta.X,
+            startPosition.Y.Scale,
+            startPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input == dragInput then
+        dragging = false
+        dragInput = nil
+    end
+end)
+
+-- TEXTBOX DETECTION
+local function findFocusedBox()
+    for _, object in ipairs(playerGui:GetDescendants()) do
+        if object:IsA("TextBox")
+            and object.Visible
+            and object:IsFocused() then
+
+            return object
+        end
+    end
+
+    return nil
+end
+
+-- TYPE COUNTRIES
+local function runSequence()
+    if typing then return end
+
+    typing = true
+    local mySession = session
+
+    task.spawn(function()
+        while enabled and mySession == session do
+
+            local box = activeBox
+
+            if not box or not box.Parent then
+                box = findFocusedBox()
+                activeBox = box
+            end
+
+            if box and box:IsFocused() then
+
+                local country = countries[index]
+
+                if not country then
+                    enabled = false
+                    status.Text = "Status: FINISHED!"
+                    break
+                end
+
+                -- Set text in an authorized TextBox
+                box.Text = country
+
+                -- Submit through Roblox's supported TextBox API.
+                -- FocusLost receives enterPressed = true.
+                box:ReleaseFocus(true)
+
+                index += 1
+
+                progress.Text =
+                    "Countries: " .. (index - 1) .. " / " .. #countries
+
+                if index > #countries then
+                    enabled = false
+                    status.Text = "Status: FINISHED!"
+                    status.TextColor3 = Color3.fromRGB(100, 255, 130)
+                    break
+                end
+
+                task.wait(COOLDOWN)
+
+                -- Resume only if the same textbox still exists.
+                if enabled and mySession == session
+                    and box.Parent then
+                    activeBox = box
+                    box:CaptureFocus()
+                end
+
+            else
+                activeBox = findFocusedBox()
+                task.wait(0.1)
+            end
+        end
+
+        typing = false
+    end)
+end
+
+-- START
+startButton.MouseButton1Click:Connect(function()
+    if enabled then return end
+
+    enabled = true
+    session += 1
+
+    status.Text = "Status: WAITING FOR TEXTBOX"
+    status.TextColor3 = Color3.fromRGB(255, 210, 80)
+
+    activeBox = findFocusedBox()
+    runSequence()
+end)
+
+-- REPEAT
+repeatButton.MouseButton1Click:Connect(function()
+    enabled = false
+    session += 1
+    index = 1
+    activeBox = nil
+
+    progress.Text = "Countries: 0 / " .. #countries
+
+    task.wait(0.1)
+
+    enabled = true
+    status.Text = "Status: RESTARTING"
+    status.TextColor3 = Color3.fromRGB(100, 180, 255)
+
+    activeBox = findFocusedBox()
+    runSequence()
+end)
+
+-- STOP
+stopButton.MouseButton1Click:Connect(function()
+    enabled = false
+    session += 1
+    activeBox = nil
+
+    status.Text = "Status: STOPPED"
+    status.TextColor3 = Color3.fromRGB(255, 100, 100)
+end)
+
+print("Name Every Country loaded!")
+print("Total countries:", #countries)
